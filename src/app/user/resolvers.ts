@@ -1,6 +1,9 @@
 import axios from "axios";
 import { prismaClient } from "../../clients/db";
 import JWTService from "../../services/jwt";
+import { GraphQlContext, JWTUser } from "../../interfaces";
+
+import { User } from "@prisma/client";
 
 interface authResponse {
     iss?: string
@@ -53,7 +56,27 @@ const queries = {
         if(!userInDb) throw new Error("Internal Error Occured!");
         const customToken = JWTService.generateWebToken(userInDb);
         return customToken;
+    },
+
+    getCurrentUser: async(parent: any, args:any, ctx: GraphQlContext) =>{
+        const id = ctx.user?.id;
+        if(!id) return null;
+        const user = await prismaClient.user.findUnique({
+            where : {
+                id: id
+            }
+        });
+        if(user) return user;
+        else throw new Error("User not found in database!");
     }
 }
 
-export const resolvers = { queries };
+const extraResolvers = {
+    User: {
+        tweets: async (parent: User) => {
+            return await prismaClient.tweet.findMany({where: {authorID: parent.id}}); 
+        }
+    }
+};
+
+export const resolvers = { queries, extraResolvers };
